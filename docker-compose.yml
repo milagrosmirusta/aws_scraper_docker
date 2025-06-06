@@ -55,11 +55,5 @@ services:
     build: .
     volumes:
       - ./output:/app/output
-    command: python merge.py
-    depends_on:
-      - scraper1
-      - scraper2
-      - scraper3
-      - scraper4
-      - scraper5
+    command: ["sleep", "999999"]
     
