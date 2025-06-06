@@ -29,4 +29,4 @@ RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 COPY scraping_anime.py .
 COPY merge.py .
 
-CMD ["scraping_anime.py"]
+CMD ["python", "scraping_anime.py"]
