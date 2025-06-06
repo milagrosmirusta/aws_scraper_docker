@@ -55,7 +55,7 @@ services:
     build: .
     volumes:
       - ./output:/app/output
-    command: merge.py
+    command: python merge.py
     depends_on:
       - scraper1
       - scraper2
