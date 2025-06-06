@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  scraper1:
+    build: .
+    volumes:
+      - ./users:/app/users
+      - ./output:/app/output
+    command: users/users_1.txt
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  scraper2:
+    build: .
+    volumes:
+      - ./users:/app/users
+      - ./output:/app/output
+    command: users/users_2.txt
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  scraper3:
+    build: .
+    volumes:
+      - ./users:/app/users
+      - ./output:/app/output
+    command: users/users_3.txt
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  scraper4:
+    build: .
+    volumes:
+      - ./users:/app/users
+      - ./output:/app/output
+    command: users/users_4.txt
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  scraper5:
+    build: .
+    volumes:
+      - ./users:/app/users
+      - ./output:/app/output
+    command: users/users_5.txt
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  merger:
+    build: .
+    volumes:
+      - ./output:/app/output
+    command: merge.py
+    depends_on:
+      - scraper1
+      - scraper2
+      - scraper3
+      - scraper4
+      - scraper5
+    
