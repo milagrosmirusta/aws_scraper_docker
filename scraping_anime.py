@@ -1,4 +1,3 @@
-
 import sys
 import os
 import time
@@ -120,7 +119,9 @@ if __name__ == "__main__":
         with open(progress_file) as pf:
             for line in pf:
                 if line.startswith("DONE"):
-                    done_users.add(line.split()[1])
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        done_users.add(parts[1])
     users = [u for u in users if u not in done_users]
 
     existentes = pd.read_parquet(output_file) if os.path.exists(output_file) else pd.DataFrame()
@@ -129,7 +130,8 @@ if __name__ == "__main__":
     for i, user in enumerate(users, 1):
         print(f"🔍 ({i}/{len(users)}) Scrappeando {user}")
         with open(progress_file, "a") as progress:
-            progress.write(f"START {user} {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            progress.write(f"START {user} {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
 
         try:
             df = try_scrape_with_retries(user)
