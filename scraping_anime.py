@@ -81,7 +81,10 @@ def try_scrape_with_retries(user, retries=3, wait_range=(3, 7)):
             time.sleep(wait)
 
 if __name__ == "__main__":
-    filename = sys.argv[1]  # por ej: users_1.txt
+    filename = sys.argv[1]  # ejemplo: users_1.txt
+    s3_path = f"users/{filename}"
+    obj = s3.get_object(Bucket=bucket, Key=s3_path)
+    users = [line.strip() for line in obj['Body'].read().decode("utf-8").splitlines() if line.strip()]
     batch_id = os.path.basename(filename).replace(".txt", "")
     output_file = f"output_{batch_id}.parquet"
     error_file = f"errors_{batch_id}.txt"
@@ -133,6 +136,8 @@ if __name__ == "__main__":
             # Append al progress
             with open(progress_file, "a", encoding="utf-8") as f:
                 f.write(f"{user}\n")
+
+            s3.upload_file(progress_file, bucket, f"{batch_key_prefix}{progress_file}")
 
         # Subir archivos actualizados
         s3.upload_file(output_file, bucket, f"{batch_key_prefix}{output_file}")
