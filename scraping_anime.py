@@ -118,8 +118,9 @@ if __name__ == "__main__":
     # Usuarios ya procesados (sin START/DONE, solo usernames)
     done_users = set()
     if os.path.exists(progress_file):
-        with open(progress_file) as pf:
-            done_users = set(line.strip() for line in pf if line.strip())
+        with open(progress_file, encoding="utf-8") as pf:
+            done_users = set(line.strip().replace('\ufeff', '') for line in pf if line.strip())
+    
 
     print(f"✅ Usuarios ya procesados: {len(done_users)}")
     users = [u for u in users if u not in done_users]
@@ -131,14 +132,9 @@ if __name__ == "__main__":
 
     for i, user in enumerate(users, 1):
         print(f"🔍 ({i}/{len(users)}) Scrappeando {user}")
-        if os.path.exists(progress_file):
-            with open(progress_file) as pf:
-                done_users = set(line.strip() for line in pf if line.strip())
-        else:
-            done_users = set()
-
-
-
+        if user in done_users:
+            print(f"✅ {user} ya procesado, saltando...")
+            continue
         try:
             df = try_scrape_with_retries(user)
         except Exception as e:
