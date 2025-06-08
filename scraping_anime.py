@@ -10,12 +10,16 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import boto3
+from io import StringIO, BytesIO
 
-s3 = boto3.client("s3")
+# Parámetros
 bucket = "anime-mal-scraper"
 batch_key_prefix = "output/"
+users_prefix = "users/"
+s3 = boto3.client("s3")
 
 def scrap_completed_anime(user):
+    # Configura Selenium
     url = f"https://myanimelist.net/animelist/{user}?status=2"
     options = Options()
     options.add_argument("--headless=new")
@@ -25,11 +29,10 @@ def scrap_completed_anime(user):
     options.add_argument("--remote-debugging-port=9222")
     service = Service('/usr/bin/chromedriver')
     driver = webdriver.Chrome(service=service, options=options)
-
+    
     driver.get(url)
     SCROLL_PAUSE_TIME = 1.5
     last_height = driver.execute_script("return document.body.scrollHeight")
-
     for _ in range(30):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(SCROLL_PAUSE_TIME)
@@ -44,7 +47,6 @@ def scrap_completed_anime(user):
         )
         rows = driver.find_elements(By.CSS_SELECTOR, ".list-table tbody tr")
     except:
-        print(f"❌ Timeout o error cargando tabla de {user}")
         driver.quit()
         raise Exception("No se pudo acceder a la tabla.")
 
@@ -54,29 +56,16 @@ def scrap_completed_anime(user):
             title_link = row.find_element(By.CSS_SELECTOR, ".data.title .link")
             title = title_link.text.strip()
             href = title_link.get_attribute("href")
-            anime_id = None
-            if "/anime/" in href:
-                parts = href.split("/")
-                if len(parts) > 4:
-                    try:
-                        anime_id = int(parts[4])
-                    except ValueError:
-                        anime_id = None
+            anime_id = int(href.split("/")[4]) if "/anime/" in href else None
             score = row.find_element(By.CSS_SELECTOR, ".data.score").text.strip()
             score = float(score) if score else None
             if not title:
                 continue
-            data.append({
-                "user": user,
-                "anime_id": anime_id,
-                "title": title,
-                "score": score
-            })
+            data.append({"user": user, "anime_id": anime_id, "title": title, "score": score})
         except:
             continue
 
     driver.quit()
-    print(f"✅ Scrapeados {len(data)} animes para {user}")
     return pd.DataFrame(data)
 
 def try_scrape_with_retries(user, retries=3, wait_range=(3, 7)):
@@ -84,7 +73,7 @@ def try_scrape_with_retries(user, retries=3, wait_range=(3, 7)):
         try:
             return scrap_completed_anime(user)
         except Exception as e:
-            print(f"⚠️ Intento {attempt} fallido para {user}: {e}")
+            print(f"❌ Intento {attempt} fallido para {user}: {e}")
             if attempt == retries:
                 raise
             wait = random.uniform(*wait_range)
@@ -92,49 +81,41 @@ def try_scrape_with_retries(user, retries=3, wait_range=(3, 7)):
             time.sleep(wait)
 
 if __name__ == "__main__":
-    print("🚀 Iniciando scraping...")
-    filename = sys.argv[1]
+    filename = sys.argv[1]  # por ej: users_1.txt
     batch_id = os.path.basename(filename).replace(".txt", "")
-    output_file = f"output/output_{batch_id}.parquet"
-    error_file = f"output/errors_{batch_id}.txt"
-    progress_file = f"output/progress_{batch_id}.txt"
+    output_file = f"output_{batch_id}.parquet"
+    error_file = f"errors_{batch_id}.txt"
+    progress_file = f"progress_{batch_id}.txt"
 
-    for key, local in [
-        (f"{batch_key_prefix}{os.path.basename(output_file)}", output_file),
-        (f"{batch_key_prefix}{os.path.basename(progress_file)}", progress_file),
-        (f"{batch_key_prefix}{os.path.basename(error_file)}", error_file),
-    ]:
+    # Descargar output, progress y errors si existen
+    for key in [output_file, progress_file, error_file]:
         try:
-            s3.download_file(bucket, key, local)
+            s3.download_file(bucket, f"{batch_key_prefix}{key}", key)
             print(f"📥 Descargado {key}")
-        except Exception as e:
-            print(f"⚠️ No se pudo descargar {key}: {e}")
+        except:
+            print(f"⚠️ No existe {key} en S3. Se creará desde cero.")
 
-    # Cargamos la lista de usuarios a scrappear
-    with open(filename, "r") as f:
-        users = [line.strip() for line in f if line.strip()]
-    print(f"👥 Primeros usuarios: {users[:5]}")
+    # Leer users desde S3
+    users_obj = s3.get_object(Bucket=bucket, Key=f"{users_prefix}{filename}")
+    users = [line.strip() for line in users_obj['Body'].read().decode("utf-8").splitlines() if line.strip()]
 
-    # Usuarios ya procesados (sin START/DONE, solo usernames)
+    # Leer progress desde S3 (ya scrappeados)
     done_users = set()
-    if os.path.exists(progress_file):
-        with open(progress_file, encoding="utf-8") as pf:
-            done_users = set(line.strip().replace('\ufeff', '') for line in pf if line.strip())
-    
+    try:
+        progress_obj = s3.get_object(Bucket=bucket, Key=f"{batch_key_prefix}{progress_file}")
+        done_users = set(line.strip().lower() for line in progress_obj['Body'].read().decode("utf-8").splitlines())
+    except:
+        print("📁 No se encontró progress previo, comenzando desde cero.")
 
-    print(f"✅ Usuarios ya procesados: {len(done_users)}")
-    users = [u for u in users if u not in done_users]
-    print(f"🔁 Usuarios restantes a scrappear: {len(users)}")
+    # Filtrar usuarios restantes
+    users = [u for u in users if u.lower() not in done_users]
+    print(f"👥 Usuarios restantes: {len(users)}")
 
-    #Dataset inicial
     existentes = pd.read_parquet(output_file) if os.path.exists(output_file) else pd.DataFrame()
     errores = []
 
     for i, user in enumerate(users, 1):
         print(f"🔍 ({i}/{len(users)}) Scrappeando {user}")
-        if user in done_users:
-            print(f"✅ {user} ya procesado, saltando...")
-            continue
         try:
             df = try_scrape_with_retries(user)
         except Exception as e:
@@ -142,31 +123,23 @@ if __name__ == "__main__":
             with open(error_file, "a", encoding="utf-8") as f:
                 f.write(f"{user}: {e}\n")
             continue
+
         if df is not None and not df.empty:
-            nuevos = df.copy()
-            nuevos["score"] = pd.to_numeric(nuevos["score"], errors="coerce")
-            nuevos["anime_id"] = pd.to_numeric(nuevos["anime_id"], errors="coerce").astype("Int64")
-
-            if "score" not in existentes.columns:
-                existentes["score"] = pd.Series(dtype='float')
-            else:
-                existentes["score"] = pd.to_numeric(existentes["score"], errors="coerce")
-            if "anime_id" not in existentes.columns:
-                existentes["anime_id"] = pd.Series(dtype='Int64')
-            else:
-                existentes["anime_id"] = pd.to_numeric(existentes["anime_id"], errors="coerce").astype("Int64")
-
-            existentes = pd.concat([existentes, nuevos]).drop_duplicates(subset=["user", "anime_id"])
+            df["score"] = pd.to_numeric(df["score"], errors="coerce")
+            df["anime_id"] = pd.to_numeric(df["anime_id"], errors="coerce").astype("Int64")
+            existentes = pd.concat([existentes, df]).drop_duplicates(subset=["user", "anime_id"])
             existentes.to_parquet(output_file, index=False)
-            print(f"💾 Guardado con {len(existentes)} registros")
 
+            # Append al progress
             with open(progress_file, "a", encoding="utf-8") as f:
                 f.write(f"{user}\n")
 
+        # Subir archivos actualizados
+        s3.upload_file(output_file, bucket, f"{batch_key_prefix}{output_file}")
+        s3.upload_file(progress_file, bucket, f"{batch_key_prefix}{progress_file}")
         with open(error_file, "w", encoding="utf-8") as f:
             f.write("\n".join(errores))
+        s3.upload_file(error_file, bucket, f"{batch_key_prefix}{error_file}")
 
-        s3.upload_file(output_file, bucket, f"{batch_key_prefix}{os.path.basename(output_file)}")
-        s3.upload_file(progress_file, bucket, f"{batch_key_prefix}{os.path.basename(progress_file)}")
-        s3.upload_file(error_file, bucket, f"{batch_key_prefix}{os.path.basename(error_file)}")
-        print("☁️ Subida a S3 completa.")
+        print("☁️ Archivos subidos a S3")
+
