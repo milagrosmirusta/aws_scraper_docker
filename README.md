@@ -26,7 +26,7 @@ aws_scraper_docker/
 
 1. Cloná el repo:
 ```bash
-git clone https://github.com/tuusuario/aws_scraper_docker.git
+git clone https://github.com/milagrosmirusta/aws_scraper_docker.git
 cd aws_scraper_docker
 ```
 
