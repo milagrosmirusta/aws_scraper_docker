@@ -6,7 +6,7 @@ services:
     volumes:
       - ./users:/app/users
       - ./output:/app/output
-    command: python scraping_anime.py users/users_1.txt
+    command: python scraping_anime.py users_1.txt
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
@@ -18,7 +18,7 @@ services:
     volumes:
       - ./users:/app/users
       - ./output:/app/output
-    command: python scraping_anime.py users/users_2.txt
+    command: python scraping_anime.py users_2.txt
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
@@ -30,7 +30,7 @@ services:
     volumes:
       - ./users:/app/users
       - ./output:/app/output
-    command: python scraping_anime.py users/users_3.txt
+    command: python scraping_anime.py users_3.txt
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
@@ -42,7 +42,7 @@ services:
     volumes:
       - ./users:/app/users
       - ./output:/app/output
-    command: python scraping_anime.py users/users_4.txt
+    command: python scraping_anime.py users_4.txt
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
@@ -54,7 +54,7 @@ services:
     volumes:
       - ./users:/app/users
       - ./output:/app/output
-    command: python scraping_anime.py users/users_5.txt
+    command: python scraping_anime.py users_5.txt
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
