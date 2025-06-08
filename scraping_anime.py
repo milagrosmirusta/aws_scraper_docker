@@ -110,27 +110,33 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"⚠️ No se pudo descargar {key}: {e}")
 
+    # Cargamos la lista de usuarios a scrappear
     with open(filename, "r") as f:
         users = [line.strip() for line in f if line.strip()]
     print(f"👥 Primeros usuarios: {users[:5]}")
 
+    # Usuarios ya procesados (sin START/DONE, solo usernames)
     done_users = set()
     if os.path.exists(progress_file):
         with open(progress_file) as pf:
-            for line in pf:
-                if line.startswith("DONE"):
-                    parts = line.strip().split()
-                    if len(parts) >= 2:
-                        done_users.add(parts[1])
-    users = [u for u in users if u not in done_users]
+            done_users = set(line.strip() for line in pf if line.strip())
 
+    print(f"✅ Usuarios ya procesados: {len(done_users)}")
+    users = [u for u in users if u not in done_users]
+    print(f"🔁 Usuarios restantes a scrappear: {len(users)}")
+
+    #Dataset inicial
     existentes = pd.read_parquet(output_file) if os.path.exists(output_file) else pd.DataFrame()
     errores = []
 
     for i, user in enumerate(users, 1):
         print(f"🔍 ({i}/{len(users)}) Scrappeando {user}")
-        with open(progress_file, "a") as progress:
-            progress.write(f"START {user} {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        if os.path.exists(progress_file):
+            with open(progress_file) as pf:
+                done_users = set(line.strip() for line in pf if line.strip())
+        else:
+            done_users = set()
+
 
 
         try:
@@ -159,7 +165,7 @@ if __name__ == "__main__":
             print(f"💾 Guardado con {len(existentes)} registros")
 
             with open(progress_file, "a", encoding="utf-8") as f:
-                f.write(f"DONE {user} {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"{user}\n")
 
         with open(error_file, "w", encoding="utf-8") as f:
             f.write("\n".join(errores))
